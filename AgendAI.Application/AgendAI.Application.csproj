@@ -1,0 +1,7 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\AgendAI.Domain\AgendAI.Domain.csproj" />
+  </ItemGroup>
+
+</Project>
