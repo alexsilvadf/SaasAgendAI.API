@@ -1,0 +1,502 @@
+================================================================================
+PLANO DETALHADO: AgendAI -> SaaS MULTI-TENANT
+================================================================================
+Projeto: AgendAI.API
+Data de referencia: junho/2026
+Premissa: banco PostgreSQL compartilhado + TenantId em todas as entidades de
+negocio, com isolamento via filtro global EF + contexto de tenant no JWT.
+
+================================================================================
+1. VISAO GERAL DAS FASES
+================================================================================
+
+Fase 0 - Fundacao          -> Secrets, Postgres prod, testes base
+Fase 1 - Modelo e migracao -> Entidade Tenant + FKs + migration
+Fase 2 - Isolamento        -> ITenantContext + QueryFilters
+Fase 3 - Auth e API        -> Login por tenant + JWT + Painel TV
+Fase 4 - Onboarding        -> Provisionamento + seed por tenant
+Fase 5 - Produto comercial -> Planos, billing, limites
+Fase 6 - Hardening         -> Auditoria, LGPD, observabilidade
+
++-------+----------------------------------------+-----------------------------+
+| Fase  | Objetivo                               | Entregavel "pronto"         |
++-------+----------------------------------------+-----------------------------+
+| 0     | Base segura e testavel                 | Postgres em prod; secrets   |
+|       |                                        | fora do repo; testes base   |
++-------+----------------------------------------+-----------------------------+
+| 1     | Modelo multi-tenant                    | Tabela Tenants, TenantId,   |
+|       |                                        | migration dados legados     |
++-------+----------------------------------------+-----------------------------+
+| 2     | Isolamento automatico                  | Nenhuma query sem tenant    |
++-------+----------------------------------------+-----------------------------+
+| 3     | Auth e superficie publica              | Login+JWT tenant; painel TV |
++-------+----------------------------------------+-----------------------------+
+| 4     | Onboarding                             | API criar clinica + admin   |
++-------+----------------------------------------+-----------------------------+
+| 5     | Comercial                              | Planos, assinatura, limites |
++-------+----------------------------------------+-----------------------------+
+| 6     | Enterprise                             | Auditoria, export, monitor  |
++-------+----------------------------------------+-----------------------------+
+
+Estimativa de esforco (1 dev full-time, ordem de grandeza):
+  Fases 0 + 1 + 2  -> 3 a 5 semanas
+  Fases 3 + 4      -> 2 a 3 semanas
+  Fase 5           -> 4 a 8 semanas (depende do gateway de pagamento)
+  Fase 6           -> continuo
+
+================================================================================
+2. FASE 0 - FUNDACAO (ANTES DE MUDAR O DOMINIO)
+================================================================================
+
+2.1 Producao persistente
+------------------------
+Problema: render.yaml forca Data__UseInMemory: "true".
+
+Acoes:
+  1. Remover ou tornar false Data__UseInMemory no Render.
+  2. Configurar ConnectionStrings__DefaultConnection via variavel de ambiente
+     (nao em appsettings.json commitado).
+  3. Garantir Jwt__Secret gerado/obrigatorio em producao.
+
+Arquivos: render.yaml, appsettings.Production.json, documentacao de deploy.
+
+2.2 Segredos
+------------
+  - Tirar senha de banco do repositorio (appsettings.json expoe credenciais).
+  - Usar User Secrets (dev), variaveis de ambiente (prod).
+
+2.3 Testes minimos antes da refatoracao
+---------------------------------------
+Criar em AgendAI.Application.Tests ou projeto de integracao:
+
+  - Login com usuario seed (baseline de regressao)
+  - Criar paciente + listar (fluxo CRUD)
+  - Cross-tenant (placeholder; deve passar apos Fase 2)
+
+================================================================================
+3. FASE 1 - MODELO DE DADOS E MIGRATION
+================================================================================
+
+3.1 Nova entidade raiz: Tenant (ou Clinica)
+-------------------------------------------
+Campos sugeridos:
+  - Id (Guid)
+  - Nome              // "Clinica Sorriso"
+  - Slug              // "clinica-sorriso" (unico global)
+  - Ativo (bool)
+  - CriadoEm (DateTime)
+  // Fase 5: PlanoId, TrialEndsAt, etc.
+
+Indice: Slug unico global (para login e URLs).
+
+Local sugerido:
+  - AgendAI.Domain/Entities/Tenant.cs
+  - AgendAI.Infra/Persistence/Configurations/TenantConfiguration.cs
+
+3.2 Onde colocar TenantId
+-------------------------
+Entidade                  | TenantId? | Motivo
+--------------------------|-----------|----------------------------------
+Usuario                   | Sim       | Login escopado por clinica
+Paciente                  | Sim       | Dados clinicos
+PacienteAnamnese          | Sim       | Dados clinicos
+PacienteHistorico         | Sim       | Dados clinicos
+Procedimento              | Sim       | Catalogo por clinica
+Agendamento               | Sim       | Agenda
+BloqueioAgenda            | Sim       | Agenda
+Atendimento               | Sim       | Atendimento
+Lancamento                | Sim       | Financeiro interno
+TokenRecuperacaoSenha     | Sim       | Tokens nao cruzam tenants
+ConfiguracaoClinica       | Sim       | Remover Id=1 fixo; 1 por tenant
+ChamadaPainelTvAtual      | Sim       | Remover singleton; 1 por tenant
+Tenant                    | N/A       | Raiz
+
+Padrao recomendado: TenantId em todas as entidades de negocio listadas
+(padrao uniforme para query filters).
+
+3.3 Alterar Entity base (opcional)
+----------------------------------
+  public abstract class Entity
+  {
+      public Guid Id { get; set; }
+      public Guid TenantId { get; set; }
+      public Tenant? Tenant { get; set; }
+  }
+
+Ou interface ITenantOwned { Guid TenantId { get; set; } } para configuracao
+em massa.
+
+3.4 Indices unicos - mudancas obrigatorias
+------------------------------------------
+Arquivos em AgendAI.Infra/Persistence/Configurations/:
+
+  UsuarioConfiguration.cs
+    Hoje:  Login unico, Email unico
+    Depois: (TenantId, Login) unico
+            (TenantId, Email) unico (filtro NULL mantido)
+
+  PacienteConfiguration.cs
+    Hoje:  Cpf unico
+    Depois: (TenantId, Cpf) unico
+
+  AgendamentoConfiguration.cs / AtendimentoConfiguration.cs
+    Incluir TenantId nos composites de conflito de horario
+
+3.5 ConfiguracaoClinica e ChamadaPainelTvAtual
+----------------------------------------------
+Hoje:
+  - ConfiguracaoClinica com HasData Id=1 em ConfiguracaoClinicaConfiguration.cs
+  - PainelTvService usa RegistroUnicoId = 1
+
+Depois:
+  - Remover HasData fixo do EF (seed por tenant no provisionamento)
+  - Indice unico em TenantId (1 config por tenant)
+  - PainelTvService: Where(c => c.TenantId == tenantId) ou upsert por tenant
+
+3.6 Migration de dados existentes
+---------------------------------
+Script conceitual da migration:
+
+  1. Criar tabela Tenants
+  2. Inserir tenant default:
+     Id  = 00000000-0000-0000-0000-000000000001
+     Slug = default
+     Nome = Clinica Padrao
+  3. Adicionar coluna TenantId nullable em todas as tabelas
+  4. UPDATE todas as linhas com o GUID default
+  5. ALTER TenantId NOT NULL + FK para Tenants
+  6. Recriar indices unicos compostos
+  7. Migrar ConfiguracoesClinica e ChamadasPainelTvAtual para tenant default
+
+Deploy: janela unica; backup antes; API antiga e nova nao coexistem bem sem
+feature flag.
+
+3.7 Seed (AgendAiDbSeeder.cs)
+-----------------------------
+  - Seed de usuarios so em dev ou apos criar tenant default
+  - CriarUsuario(...) recebe TenantId = SeedIds.TenantDefault
+  - GarantirUsuarioRaissaAsync e buscas por login filtram por tenant
+  - Adicionar TenantDefault em SeedIds.cs
+
+================================================================================
+4. FASE 2 - ISOLAMENTO AUTOMATICO (CORACAO DO SAAS)
+================================================================================
+
+4.1 ITenantContext
+------------------
+  public interface ITenantContext
+  {
+      Guid TenantId { get; }
+      bool IsResolved { get; }
+  }
+
+Implementacoes:
+  - HttpTenantContext     -> le tenant_id do JWT apos autenticacao
+  - NullTenantContext     -> health check, migracoes (cuidado)
+  - ProvisioningTenantContext -> onboarding com tenant explicito no escopo
+
+Registro: scoped em DependencyInjection.cs
+
+4.2 Filtros globais no AgendAiDbContext
+---------------------------------------
+Aplicar HasQueryFilter em todas as entidades ITenantOwned:
+  e => e.TenantId == _tenantContext.TenantId
+
+Com tenant resolvido, db.Pacientes nunca retorna outro tenant.
+
+4.3 Interceptor ao salvar (defesa em profundidade)
+--------------------------------------------------
+SaveChangesInterceptor que:
+  - em Insert: preenche TenantId se vazio, a partir do contexto
+  - em Insert/Update: lanca se TenantId != contexto
+
+4.4 Refatoracao dos 9 servicos (AgendAI.Infra/Services/)
+--------------------------------------------------------
+  AuthService         -> Login ANTES do JWT: resolver tenant por slug
+  AgendaService       -> ConfiguracoesClinica.FirstAsync() ja filtrado
+  AgendamentoService  -> Conflitos de horario escopados
+  AtendimentoService  -> FKs do mesmo tenant
+  PacienteService     -> CPF duplicado so dentro do tenant
+  ProcedimentoService -> Idem
+  UsuarioService      -> Listagem so do tenant
+  FinanceiroService   -> Idem
+  PainelTvService     -> Remover RegistroUnicoId = 1
+
+4.5 Bypass consciente
+---------------------
+Operacoes de plataforma (super-admin AgendAI):
+  - IgnoreQueryFilters() SOMENTE em servicos administrativos dedicados
+  - Nunca nos servicos de clinica
+  - Nao implementar super-admin no MVP se nao for necessario
+
+4.6 Testes de isolamento (obrigatorio)
+--------------------------------------
+  - Tenant A cria paciente -> Tenant B nao lista
+  - Token de A em rota com ID de B -> 404 ou 403
+  - Login em tenant errado com credenciais de outro -> falha
+
+================================================================================
+5. FASE 3 - AUTENTICACAO, API E SUPERFICIES PUBLICAS
+================================================================================
+
+5.1 Login multi-tenant
+----------------------
+LoginRequest (AgendAI.Application/DTOs/Auth/LoginRequest.cs):
+  - TenantSlug (string)  // ou TenantId em GUID
+  - Usuario
+  - Senha
+
+Fluxo em AuthService.LoginAsync:
+  1. Resolver tenant por Slug (ativo)
+  2. db.Usuarios.Where(u => u.TenantId == tenant.Id && u.Login == login)
+  3. Gerar JWT com claims extras
+
+LoginResponse: incluir TenantId, TenantSlug, TenantNome
+
+5.2 JWT (JwtTokenGenerator.cs)
+------------------------------
+Novas claims:
+  - tenant_id   -> GUID do tenant
+  - tenant_slug -> slug (opcional)
+
+ClaimsPrincipalExtensions: GetTenantId() usado por HttpTenantContext
+
+5.3 Recuperacao de senha
+------------------------
+BuscarUsuarioPorIdentificadorAsync precisa de tenant:
+  - Opcao A: pedir slug na tela "esqueci senha"
+  - Opcao B: email unico na plataforma (menos comum em SaaS B2B)
+
+Hoje email e unico global -> quebra sem slug.
+
+5.4 Painel TV
+-------------
+Problema: GET anonimo em PainelTvController expoe dados da unica clinica.
+
+Solucao recomendada (MVP):
+  GET /api/v1/painel-tv/{tenantSlug}/chamada-atual
+  GET /api/v1/painel-tv/{tenantSlug}/proximos-pacientes
+
+  - Resolver tenant pelo slug na rota
+  - Escopo de leitura so desse tenant (contexto manual, sem JWT)
+  - Token opcional de longa duracao por clinica (Fase 6)
+
+Arquivos: PainelTvController.cs, PainelTvService.cs, frontend do painel
+
+5.5 CORS e frontend
+-------------------
+Hoje: origens fixas (agendai-fawn.vercel.app)
+
+SaaS:
+  - *.agendai.com.br wildcard (subdominio por tenant)
+  - Lista dinamica por tenant (white-label)
+  - Um app Angular com tenant no login (mais simples para MVP)
+
+Frontend (fora deste repo):
+  - Tela de login com campo "Clinica" ou subdominio
+  - Guardar tenantSlug no storage
+  - Nao reutilizar token entre tenants sem novo login
+
+5.6 Controllers
+---------------
+Em geral NAO precisam de tenantId na rota se vier do JWT.
+Excecoes: auth, painel TV, onboarding publico.
+
+Controllers existentes:
+  AuthController, HealthController, AgendaController,
+  AgendamentosController, AtendimentosController, PacientesController,
+  ProcedimentosController, ProfissionaisController, UsuariosController,
+  FinanceiroController, PainelTvController
+
+================================================================================
+6. FASE 4 - ONBOARDING E PROVISIONAMENTO
+================================================================================
+
+6.1 API de registro (MVP SaaS)
+------------------------------
+POST /api/v1/tenants/register
+
+Body:
+{
+  "nomeClinica": "...",
+  "slug": "minha-clinica",
+  "adminNome": "...",
+  "adminLogin": "...",
+  "adminEmail": "...",
+  "adminSenha": "..."
+}
+
+6.2 TenantProvisioningService
+-----------------------------
+  1. Validar slug unico
+  2. Criar Tenant
+  3. Criar ConfiguracaoClinica default (8h-18h, 30 min)
+  4. Criar ChamadaPainelTvAtual vazia
+  5. Criar Usuario administrador
+  6. (Opcional) seed de procedimentos padrao
+  7. Retornar token ou instrucao de login
+
+Tudo em uma transacao SaveChanges.
+
+6.3 Papeis futuros
+------------------
+  Administrador   -> admin da clinica (atual)
+  PlatformAdmin   -> AgendAI interno; gerenciar tenants (Fase 6)
+
+6.4 Ambiente de desenvolvimento
+-------------------------------
+  - Manter tenant default + seed atual
+  - Documentar slug "default" no README
+
+================================================================================
+7. FASE 5 - PRODUTO COMERCIAL (POS-MVP TECNICO)
+================================================================================
+
+7.1 Modelo minimo de billing
+----------------------------
+  Plano       -> nome, preco, limites JSON
+  Assinatura  -> TenantId, PlanoId, Status, PeriodoFim
+  Uso/Limite  -> opcional: n usuarios, n pacientes
+
+7.2 Integracao de pagamento
+---------------------------
+  Stripe ou Pagar.me: webhooks -> atualizar Assinatura.Status
+  Se Assinatura inativa: bloquear escrita (leitura opcional)
+
+7.3 Limites por plano
+-----------------------
+  Max usuarios ativos     -> UsuarioService ao criar
+  Max profissionais       -> idem
+  Features (financeiro)   -> claim feature_* no JWT derivado do plano
+
+7.4 Separar financeiros
+-----------------------
+  Modulo atual (FinanceiroController, Lancamento):
+    receita da clinica com pacientes
+
+  Billing SaaS:
+    outro bounded context (nao misturar relatorios)
+
+================================================================================
+8. FASE 6 - HARDENING, COMPLIANCE E OPS
+================================================================================
+
+  Auditoria        -> AuditLog (TenantId, UserId, acao, entidade, timestamp)
+  LGPD             -> Export JSON por paciente; exclusao anonimizada
+  Rate limiting    -> Login e register por IP
+  Observabilidade  -> TenantId em logs estruturados (Serilog)
+  Backup           -> Politica banco compartilhado; restore por tenant se preciso
+  JWT              -> Rotacao de secret; refresh token (futuro)
+
+================================================================================
+9. ORDEM DE IMPLEMENTACAO (CHECKLIST)
+================================================================================
+
+Sprint 1 - Infra e modelo
+  [ ] Secrets fora do repo; Postgres no Render
+  [ ] Entidade Tenant + migration com tenant default
+  [ ] TenantId em entidades + indices compostos
+  [ ] Ajustar ConfiguracaoClinica / ChamadaPainelTvAtual
+
+Sprint 2 - Isolamento
+  [ ] ITenantContext + interceptor SaveChanges
+  [ ] Global query filters no AgendAiDbContext
+  [ ] Refatorar 9 servicos (remover singletons)
+  [ ] Testes cross-tenant
+
+Sprint 3 - Auth e API publica
+  [ ] LoginRequest.TenantSlug + JWT claims
+  [ ] Recuperacao de senha com tenant
+  [ ] Painel TV por slug + atualizar frontend
+  [ ] LoginResponse com dados do tenant
+
+Sprint 4 - Onboarding
+  [ ] POST /tenants/register
+  [ ] Seed por tenant; dev com default
+  [ ] Documentacao para novos clientes
+
+Sprint 5+ - Comercial e enterprise
+  [ ] Planos, webhooks, limites
+  [ ] Auditoria e export LGPD
+
+================================================================================
+10. IMPACTOS NO FRONTEND (COORDENACAO)
+================================================================================
+
+  Login      -> Campo clinica (slug) ou subdominio
+  Storage    -> tenantSlug; nao reutilizar token entre clinicas
+  Painel TV  -> URL com slug ou token
+  Cadastro   -> Fluxo registro da clinica (Fase 4)
+  Erros      -> 403 tenant inativo vs 401
+
+API pode manter api/v1; breaking change via campos obrigatorios no login.
+
+================================================================================
+11. RISCOS E MITIGACAO
+================================================================================
+
+  Vazamento cross-tenant     -> Query filters + testes + review IgnoreQueryFilters
+  Migration prod com dados   -> Tenant default + backup; testar copia do banco
+  Login admin em dois tenants-> Indice (TenantId, Login)
+  Painel TV slug adivinhavel -> Token de leitura por tenant (Fase 3+)
+  Regressao agenda           -> Testes AgendaService com 2 tenants
+  Scope creep billing        -> Fases 5-6 so apos isolamento validado
+
+================================================================================
+12. O QUE NAO FAZER NO PRIMEIRO RELEASE SAAS
+================================================================================
+
+  - DB por tenant (complexidade operacional alta)
+  - Super-admin completo antes de isolamento estavel
+  - Reescrever financeiro clinico como billing
+  - Multiplos tenants no mesmo login sem trocar token
+  - Manter UseInMemory em producao
+
+================================================================================
+13. CRITERIO DE "MVP SAAS PRONTO"
+================================================================================
+
+  1. Duas clinicas no mesmo Postgres sem ver dados uma da outra (testes auto)
+  2. Login exige identificacao da clinica
+  3. Onboarding cria clinica + admin + config em uma chamada
+  4. Deploy Postgres persistente com secrets seguros
+  5. Painel TV nao expoe outras clinicas
+
+Billing e planos podem ser MANUAIS (contrato + ativacao no banco) ate Fase 5.
+
+================================================================================
+14. REFERENCIA - ESTADO ATUAL DO CODIGO (PRE-MIGRACAO)
+================================================================================
+
+Camadas:
+  AgendAI.API           -> Controllers, middleware
+  AgendAI.Application   -> Contratos, DTOs, RolePermissions
+  AgendAI.Domain        -> Entidades
+  AgendAI.Infra         -> EF Core, JWT, email, servicos
+  AgendAI.CrossCutting  -> Placeholder
+
+Entidades (AgendAI.Domain/Entities/):
+  Usuario, Paciente, PacienteAnamnese, PacienteHistorico, Procedimento,
+  Agendamento, BloqueioAgenda, Atendimento, Lancamento, TokenRecuperacaoSenha,
+  ConfiguracaoClinica, ChamadaPainelTvAtual
+
+Servicos (AgendAI.Infra/Services/):
+  AuthService, AgendaService, AgendamentoService, AtendimentoService,
+  PacienteService, ProcedimentoService, UsuarioService, FinanceiroService,
+  PainelTvService
+
+Modelo atual: single-tenant (uma clinica por banco/deploy)
+  - Sem TenantId, Organization, IUserContext
+  - ConfiguracaoClinica Id=1 singleton
+  - ChamadaPainelTvAtual Id=1 singleton
+  - Login e Email unicos globais
+  - CPF paciente unico global
+  - Sem HasQueryFilter no DbContext
+  - JWT: sub, role, permission, professionalId (sem tenant_id)
+  - render.yaml: Data__UseInMemory=true
+
+Caminho recomendado: DB compartilhado + TenantId + global filters + JWT tenant
+
+================================================================================
+FIM DO DOCUMENTO
+================================================================================
