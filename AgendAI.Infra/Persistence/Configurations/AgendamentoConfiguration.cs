@@ -8,7 +8,7 @@ namespace AgendAI.Infra.Persistence.Configurations;
 
 public class AgendamentoConfiguration : IEntityTypeConfiguration<Agendamento>
 {
-    private const string StatusAgendadoFilter = "[Status] = N'agendado'";
+    private const string StatusAgendadoFilter = "\"Status\" = 'agendado'";
 
     public void Configure(EntityTypeBuilder<Agendamento> builder)
     {

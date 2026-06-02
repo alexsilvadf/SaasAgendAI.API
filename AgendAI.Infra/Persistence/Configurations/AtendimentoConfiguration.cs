@@ -38,7 +38,7 @@ public class AtendimentoConfiguration : IEntityTypeConfiguration<Atendimento>
         builder.HasIndex(atendimento => atendimento.AgendamentoId)
             .IsUnique()
             .HasDatabaseName("IX_Atendimentos_AgendamentoId")
-            .HasFilter("[AgendamentoId] IS NOT NULL");
+            .HasFilter("\"AgendamentoId\" IS NOT NULL");
 
         builder.HasOne(atendimento => atendimento.Profissional)
             .WithMany(usuario => usuario.AtendimentosComoProfissional)

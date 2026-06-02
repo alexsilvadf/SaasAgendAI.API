@@ -56,6 +56,6 @@ public class LancamentoConfiguration : IEntityTypeConfiguration<Lancamento>
         builder.HasIndex(lancamento => lancamento.AtendimentoId)
             .IsUnique()
             .HasDatabaseName("IX_Lancamentos_AtendimentoId")
-            .HasFilter("[AtendimentoId] IS NOT NULL");
+            .HasFilter("\"AtendimentoId\" IS NOT NULL");
     }
 }

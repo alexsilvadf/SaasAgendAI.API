@@ -85,7 +85,7 @@ namespace AgendAI.Infra.Persistence.Migrations
                 table: "Agendamentos",
                 columns: new[] { "TenantId", "PacienteId", "Data", "HoraInicio" },
                 unique: true,
-                filter: "[Status] = N'agendado'");
+                filter: "\"Status\" = 'agendado'");
 
             migrationBuilder.CreateIndex(
                 name: "IX_Agendamentos_PacienteId",
@@ -97,7 +97,7 @@ namespace AgendAI.Infra.Persistence.Migrations
                 table: "Agendamentos",
                 columns: new[] { "TenantId", "ProfissionalId", "Data", "HoraInicio" },
                 unique: true,
-                filter: "[Status] = N'agendado'");
+                filter: "\"Status\" = 'agendado'");
 
             migrationBuilder.CreateIndex(
                 name: "IX_Agendamentos_ProfissionalId",
@@ -189,14 +189,14 @@ namespace AgendAI.Infra.Persistence.Migrations
                 table: "Agendamentos",
                 columns: new[] { "PacienteId", "Data", "HoraInicio" },
                 unique: true,
-                filter: "[Status] = N'agendado'");
+                filter: "\"Status\" = 'agendado'");
 
             migrationBuilder.CreateIndex(
                 name: "IX_Agendamentos_Profissional_Data_Hora_Agendado",
                 table: "Agendamentos",
                 columns: new[] { "ProfissionalId", "Data", "HoraInicio" },
                 unique: true,
-                filter: "[Status] = N'agendado'");
+                filter: "\"Status\" = 'agendado'");
 
             migrationBuilder.CreateIndex(
                 name: "IX_Agendamentos_TenantId",
