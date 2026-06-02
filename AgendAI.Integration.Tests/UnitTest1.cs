@@ -8,6 +8,7 @@ using AgendAI.Infra.Persistence;
 using AgendAI.Infra.Persistence.Seed;
 using AgendAI.Infra.Security;
 using AgendAI.Infra.Services;
+using AgendAI.Application.DTOs.Procedimentos;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 
@@ -203,5 +204,43 @@ public class BaselineIntegrationTests
 
         var getByIdOnB = await pacienteServiceB.ObterPorIdAsync(pacienteA.Id);
         Assert.Null(getByIdOnB);
+    }
+
+    [Fact]
+    public async Task CrossTenant_procedimentoCriadoNoTenantA_naoApareceNoTenantB()
+    {
+        var dbName = $"cross_tenant_proc_{Guid.NewGuid():N}";
+        var tenantA = Guid.Parse("33333333-3333-3333-3333-333333333331");
+        var tenantB = Guid.Parse("44444444-4444-4444-4444-444444444441");
+
+        await using (var setupDb = CreateDbContext(dbName))
+        {
+            setupDb.Tenants.AddRange(
+                new AgendAI.Domain.Entities.Tenant { Id = tenantA, Nome = "Tenant A", Slug = "tenant-a-proc", Ativo = true, CriadoEm = DateTime.UtcNow },
+                new AgendAI.Domain.Entities.Tenant { Id = tenantB, Nome = "Tenant B", Slug = "tenant-b-proc", Ativo = true, CriadoEm = DateTime.UtcNow });
+            await setupDb.SaveChangesAsync();
+        }
+
+        await using var dbA = new AgendAiDbContext(
+            new DbContextOptionsBuilder<AgendAiDbContext>().UseInMemoryDatabase(dbName).Options,
+            new FixedTenantContext(tenantA));
+        await using var dbB = new AgendAiDbContext(
+            new DbContextOptionsBuilder<AgendAiDbContext>().UseInMemoryDatabase(dbName).Options,
+            new FixedTenantContext(tenantB));
+
+        var serviceA = new ProcedimentoService(dbA, new FixedTenantContext(tenantA));
+        var serviceB = new ProcedimentoService(dbB, new FixedTenantContext(tenantB));
+
+        var criado = await serviceA.CadastrarAsync(new AgendAI.Application.DTOs.Procedimentos.CadastrarProcedimentoRequest
+        {
+            Nome = "Limpeza Tenant A",
+            Valor = 150m
+        });
+
+        var listaA = await serviceA.ListarAsync();
+        var listaB = await serviceB.ListarAsync();
+
+        Assert.Contains(listaA, p => p.Id == criado.Id);
+        Assert.DoesNotContain(listaB, p => p.Id == criado.Id);
     }
 }

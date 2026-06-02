@@ -1,4 +1,6 @@
+using System.Security.Claims;
 using System.Text;
+using System.IdentityModel.Tokens.Jwt;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
@@ -15,6 +17,9 @@ internal sealed class ConfigureJwtBearerOptions(IOptions<JwtSettings> jwtSetting
 
         var jwt = jwtSettings.Value;
 
+        // Mantém nomes de claims do JWT (ex.: tenant_id) sem remapear para tipos longos do .NET.
+        options.MapInboundClaims = false;
+
         options.TokenValidationParameters = new TokenValidationParameters
         {
             ValidateIssuer = true,
@@ -23,7 +28,9 @@ internal sealed class ConfigureJwtBearerOptions(IOptions<JwtSettings> jwtSetting
             ValidateIssuerSigningKey = true,
             ValidIssuer = jwt.Issuer,
             ValidAudience = jwt.Audience,
-            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwt.Secret))
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwt.Secret)),
+            NameClaimType = JwtRegisteredClaimNames.UniqueName,
+            RoleClaimType = ClaimTypes.Role
         };
     }
 

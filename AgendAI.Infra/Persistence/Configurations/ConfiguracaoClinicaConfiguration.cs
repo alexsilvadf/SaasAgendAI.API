@@ -12,6 +12,9 @@ public class ConfiguracaoClinicaConfiguration : IEntityTypeConfiguration<Configu
 
         builder.HasKey(configuracao => configuracao.Id);
 
+        builder.Property(configuracao => configuracao.Id)
+            .ValueGeneratedOnAdd();
+
         builder.Property(configuracao => configuracao.TenantId)
             .IsRequired();
 

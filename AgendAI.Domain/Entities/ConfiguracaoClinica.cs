@@ -4,7 +4,7 @@ namespace AgendAI.Domain.Entities;
 
 public class ConfiguracaoClinica : ITenantOwned
 {
-    public int Id { get; set; } = 1;
+    public int Id { get; set; }
 
     public Guid TenantId { get; set; }
 

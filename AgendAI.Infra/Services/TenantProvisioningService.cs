@@ -49,8 +49,12 @@ public sealed class TenantProvisioningService(AgendAiDbContext db) : ITenantProv
             CriadoEm = now
         };
 
+        var configId = await IntEntityIdAllocator.NextConfiguracaoClinicaIdAsync(db, cancellationToken);
+        var painelId = await IntEntityIdAllocator.NextChamadaPainelTvIdAsync(db, cancellationToken);
+
         var configuracao = new ConfiguracaoClinica
         {
+            Id = configId,
             TenantId = tenant.Id,
             HoraAbertura = new TimeOnly(8, 0),
             HoraFechamento = new TimeOnly(18, 0),
@@ -59,6 +63,7 @@ public sealed class TenantProvisioningService(AgendAiDbContext db) : ITenantProv
 
         var painel = new ChamadaPainelTvAtual
         {
+            Id = painelId,
             TenantId = tenant.Id,
             PacienteNome = string.Empty,
             ProfissionalNome = string.Empty,

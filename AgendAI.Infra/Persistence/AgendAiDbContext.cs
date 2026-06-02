@@ -11,9 +11,15 @@ public class AgendAiDbContext : DbContext
 
     public AgendAiDbContext(
         DbContextOptions<AgendAiDbContext> options,
-        ITenantContext? tenantContext = null) : base(options)
+        ITenantContext tenantContext) : base(options)
     {
-        _tenantContext = tenantContext ?? new NullTenantContext();
+        _tenantContext = tenantContext;
+    }
+
+    /// <summary>Usado em testes e bootstrap sem HTTP (sem filtro de tenant).</summary>
+    public AgendAiDbContext(DbContextOptions<AgendAiDbContext> options)
+        : this(options, new NullTenantContext())
+    {
     }
 
     public DbSet<Tenant> Tenants => Set<Tenant>();

@@ -1,4 +1,5 @@
 using AgendAI.API.Extensions;
+using AgendAI.API.Middleware;
 using AgendAI.Infra;
 using AgendAI.Infra.Email;
 using AgendAI.Infra.Persistence;
@@ -61,6 +62,7 @@ app.UseCloudHosting();
 app.UseCors(CorsExtensions.AngularPolicyName);
 
 app.UseAuthentication();
+app.UseMiddleware<TenantRequiredMiddleware>();
 app.UseAuthorization();
 
 app.MapControllers();

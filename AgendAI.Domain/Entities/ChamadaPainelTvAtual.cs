@@ -3,11 +3,11 @@ using AgendAI.Domain.Abstractions;
 namespace AgendAI.Domain.Entities;
 
 /// <summary>
-/// Chamada exibida no painel/TV da recepção (registro único, Id = 1).
+/// Chamada exibida no painel/TV da recepção (um registro por tenant).
 /// </summary>
 public class ChamadaPainelTvAtual : ITenantOwned
 {
-    public int Id { get; set; } = 1;
+    public int Id { get; set; }
 
     public Guid TenantId { get; set; }
 

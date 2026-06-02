@@ -9,14 +9,17 @@ using Microsoft.EntityFrameworkCore;
 
 namespace AgendAI.Infra.Services;
 
-public sealed class ProcedimentoService(AgendAiDbContext db) : IProcedimentoService
+public sealed class ProcedimentoService(AgendAiDbContext db, ITenantContext tenantContext) : IProcedimentoService
 {
     public async Task<ProcedimentoDto> CadastrarAsync(
         CadastrarProcedimentoRequest request,
         CancellationToken cancellationToken = default)
     {
+        EnsureTenantResolved();
+
         var procedimento = new Procedimento
         {
+            TenantId = tenantContext.TenantId,
             Nome = request.Nome.Trim(),
             Valor = request.Valor,
             Status = StatusProcedimento.Ativo,
@@ -30,12 +33,18 @@ public sealed class ProcedimentoService(AgendAiDbContext db) : IProcedimentoServ
     }
 
     public async Task<IReadOnlyList<ProcedimentoDto>> ListarAtivosAsync(
-        CancellationToken cancellationToken = default) =>
-        await ListarInternoAsync(ativo: true, cancellationToken);
+        CancellationToken cancellationToken = default)
+    {
+        EnsureTenantResolved();
+        return await ListarInternoAsync(ativo: true, cancellationToken);
+    }
 
     public async Task<IReadOnlyList<ProcedimentoDto>> ListarAsync(
-        CancellationToken cancellationToken = default) =>
-        await ListarInternoAsync(ativo: null, cancellationToken);
+        CancellationToken cancellationToken = default)
+    {
+        EnsureTenantResolved();
+        return await ListarInternoAsync(ativo: null, cancellationToken);
+    }
 
     private async Task<IReadOnlyList<ProcedimentoDto>> ListarInternoAsync(
         bool? ativo,
@@ -55,6 +64,8 @@ public sealed class ProcedimentoService(AgendAiDbContext db) : IProcedimentoServ
         AtualizarProcedimentoRequest request,
         CancellationToken cancellationToken = default)
     {
+        EnsureTenantResolved();
+
         var procedimento = await db.Procedimentos
             .FirstOrDefaultAsync(p => p.Id == id, cancellationToken)
             ?? throw new NotFoundException("Procedimento", id);
@@ -69,6 +80,8 @@ public sealed class ProcedimentoService(AgendAiDbContext db) : IProcedimentoServ
 
     public async Task ExcluirAsync(Guid id, CancellationToken cancellationToken = default)
     {
+        EnsureTenantResolved();
+
         var procedimento = await db.Procedimentos
             .FirstOrDefaultAsync(p => p.Id == id, cancellationToken)
             ?? throw new NotFoundException("Procedimento", id);
@@ -84,5 +97,14 @@ public sealed class ProcedimentoService(AgendAiDbContext db) : IProcedimentoServ
 
         db.Procedimentos.Remove(procedimento);
         await db.SaveChangesAsync(cancellationToken);
+    }
+
+    private void EnsureTenantResolved()
+    {
+        if (!tenantContext.IsResolved)
+        {
+            throw new UnauthorizedAccessException(
+                "Contexto da clínica não identificado. Faça login novamente informando o slug da clínica.");
+        }
     }
 }

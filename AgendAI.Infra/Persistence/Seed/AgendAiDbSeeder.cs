@@ -24,7 +24,7 @@ public static class AgendAiDbSeeder
     {
         await GarantirTenantDefaultAsync(db, cancellationToken);
 
-        if (!await db.Usuarios.AnyAsync(cancellationToken))
+        if (!await db.Usuarios.IgnoreQueryFilters().AnyAsync(u => u.TenantId == SeedIds.TenantDefault, cancellationToken))
         {
             var now = DateTime.UtcNow;
             db.Usuarios.AddRange(CriarUsuarios(now));
@@ -34,22 +34,42 @@ public static class AgendAiDbSeeder
         await GarantirConfiguracaoClinicaDefaultAsync(db, cancellationToken);
         await GarantirPainelTvAtualDefaultAsync(db, cancellationToken);
 
+        await GarantirTenantDemoAsync(
+            db,
+            SeedIds.TenantClinicaSorriso,
+            "clinica-sorriso",
+            "Clínica Sorriso",
+            SeedIds.UsuarioAdminSorriso,
+            "Admin Sorriso",
+            "admin.sorriso@agendai.local",
+            cancellationToken);
+        await GarantirTenantDemoAsync(
+            db,
+            SeedIds.TenantClinicaVital,
+            "clinica-vital",
+            "Clínica Vital",
+            SeedIds.UsuarioAdminVital,
+            "Admin Vital",
+            "admin.vital@agendai.local",
+            cancellationToken);
+
         await AtualizarEmailsUsuariosSeedAsync(db, cancellationToken);
         await GarantirUsuarioRaissaAsync(db, cancellationToken);
     }
 
     private static List<Usuario> CriarUsuarios(DateTime now) =>
     [
-        CriarUsuario(SeedIds.UsuarioAdmin, "Admin Sistema", "admin", "admin@agendai.local", UserRole.Administrador, null, true, now, "admin123"),
-        CriarUsuario(SeedIds.UsuarioAnaMartins, "Dra. Ana Martins", "ana.martins", "ana.martins@agendai.local", UserRole.Dentista, "Clínica geral", true, now),
-        CriarUsuario(SeedIds.UsuarioBrunoCosta, "Dr. Bruno Costa", "bruno.costa", "bruno.costa@agendai.local", UserRole.Dentista, "Cardiologia", true, now),
-        CriarUsuario(SeedIds.UsuarioCarlaRecepcao, "Carla Recepção", "carla", "carla@agendai.local", UserRole.Recepcionista, null, true, now),
-        CriarUsuario(SeedIds.UsuarioCarlaDias, "Dra. Carla Dias", "carla.dias", "carla.dias@agendai.local", UserRole.Dentista, "Dermatologia", false, now),
-        CriarUsuario(SeedIds.UsuarioRaissa, "Dra. Raissa", "raissa", "raissa@agendai.local", UserRole.Dentista, "Dentista", true, now)
+        CriarUsuario(SeedIds.UsuarioAdmin, SeedIds.TenantDefault, "Admin Sistema", "admin", "admin@agendai.local", UserRole.Administrador, null, true, now, "admin123"),
+        CriarUsuario(SeedIds.UsuarioAnaMartins, SeedIds.TenantDefault, "Dra. Ana Martins", "ana.martins", "ana.martins@agendai.local", UserRole.Dentista, "Clínica geral", true, now),
+        CriarUsuario(SeedIds.UsuarioBrunoCosta, SeedIds.TenantDefault, "Dr. Bruno Costa", "bruno.costa", "bruno.costa@agendai.local", UserRole.Dentista, "Cardiologia", true, now),
+        CriarUsuario(SeedIds.UsuarioCarlaRecepcao, SeedIds.TenantDefault, "Carla Recepção", "carla", "carla@agendai.local", UserRole.Recepcionista, null, true, now),
+        CriarUsuario(SeedIds.UsuarioCarlaDias, SeedIds.TenantDefault, "Dra. Carla Dias", "carla.dias", "carla.dias@agendai.local", UserRole.Dentista, "Dermatologia", false, now),
+        CriarUsuario(SeedIds.UsuarioRaissa, SeedIds.TenantDefault, "Dra. Raissa", "raissa", "raissa@agendai.local", UserRole.Dentista, "Dentista", true, now)
     ];
 
     private static Usuario CriarUsuario(
         Guid id,
+        Guid tenantId,
         string nome,
         string login,
         string email,
@@ -61,7 +81,7 @@ public static class AgendAiDbSeeder
         new()
         {
             Id = id,
-            TenantId = SeedIds.TenantDefault,
+            TenantId = tenantId,
             Nome = nome,
             Login = login,
             Email = email,
@@ -76,7 +96,7 @@ public static class AgendAiDbSeeder
         AgendAiDbContext db,
         CancellationToken cancellationToken)
     {
-        var usuarios = await db.Usuarios.ToListAsync(cancellationToken);
+        var usuarios = await db.Usuarios.IgnoreQueryFilters().ToListAsync(cancellationToken);
         var alterou = false;
 
         foreach (var usuario in usuarios)
@@ -99,7 +119,7 @@ public static class AgendAiDbSeeder
         AgendAiDbContext db,
         CancellationToken cancellationToken)
     {
-        var jaExiste = await db.Usuarios.AnyAsync(
+        var jaExiste = await db.Usuarios.IgnoreQueryFilters().AnyAsync(
             u => u.TenantId == SeedIds.TenantDefault &&
                  (u.Id == SeedIds.UsuarioRaissa || u.Login == "raissa"),
             cancellationToken);
@@ -110,6 +130,7 @@ public static class AgendAiDbSeeder
         var now = DateTime.UtcNow;
         db.Usuarios.Add(CriarUsuario(
             SeedIds.UsuarioRaissa,
+            SeedIds.TenantDefault,
             "Dra. Raissa",
             "raissa",
             "raissa@agendai.local",
@@ -125,15 +146,66 @@ public static class AgendAiDbSeeder
         AgendAiDbContext db,
         CancellationToken cancellationToken)
     {
-        var tenantExiste = await db.Tenants.AnyAsync(t => t.Id == SeedIds.TenantDefault, cancellationToken);
+        await GarantirTenantAsync(
+            db,
+            SeedIds.TenantDefault,
+            "default",
+            "Clínica Padrão",
+            cancellationToken);
+    }
+
+    private static async Task GarantirTenantDemoAsync(
+        AgendAiDbContext db,
+        Guid tenantId,
+        string slug,
+        string nome,
+        Guid adminUserId,
+        string adminNome,
+        string adminEmail,
+        CancellationToken cancellationToken)
+    {
+        await GarantirTenantAsync(db, tenantId, slug, nome, cancellationToken);
+        await GarantirConfiguracaoClinicaAsync(db, tenantId, cancellationToken);
+        await GarantirPainelTvAtualAsync(db, tenantId, cancellationToken);
+
+        var adminExiste = await db.Usuarios.IgnoreQueryFilters().AnyAsync(
+            u => u.TenantId == tenantId && u.Login == "admin",
+            cancellationToken);
+        if (adminExiste)
+            return;
+
+        var now = DateTime.UtcNow;
+        db.Usuarios.Add(CriarUsuario(
+            adminUserId,
+            tenantId,
+            adminNome,
+            "admin",
+            adminEmail,
+            UserRole.Administrador,
+            null,
+            true,
+            now,
+            "admin123"));
+
+        await db.SaveChangesAsync(cancellationToken);
+    }
+
+    private static async Task GarantirTenantAsync(
+        AgendAiDbContext db,
+        Guid tenantId,
+        string slug,
+        string nome,
+        CancellationToken cancellationToken)
+    {
+        var tenantExiste = await db.Tenants.AnyAsync(t => t.Id == tenantId, cancellationToken);
         if (tenantExiste)
             return;
 
         db.Tenants.Add(new Tenant
         {
-            Id = SeedIds.TenantDefault,
-            Nome = "Clinica Padrao",
-            Slug = "default",
+            Id = tenantId,
+            Nome = nome,
+            Slug = slug,
             Ativo = true,
             CriadoEm = DateTime.UtcNow
         });
@@ -143,17 +215,25 @@ public static class AgendAiDbSeeder
 
     private static async Task GarantirConfiguracaoClinicaDefaultAsync(
         AgendAiDbContext db,
+        CancellationToken cancellationToken) =>
+        await GarantirConfiguracaoClinicaAsync(db, SeedIds.TenantDefault, cancellationToken);
+
+    private static async Task GarantirConfiguracaoClinicaAsync(
+        AgendAiDbContext db,
+        Guid tenantId,
         CancellationToken cancellationToken)
     {
         var existe = await db.ConfiguracoesClinica
-            .AnyAsync(c => c.TenantId == SeedIds.TenantDefault, cancellationToken);
+            .AnyAsync(c => c.TenantId == tenantId, cancellationToken);
 
         if (existe)
             return;
 
+        var configId = await IntEntityIdAllocator.NextConfiguracaoClinicaIdAsync(db, cancellationToken);
         db.ConfiguracoesClinica.Add(new ConfiguracaoClinica
         {
-            TenantId = SeedIds.TenantDefault,
+            Id = configId,
+            TenantId = tenantId,
             HoraAbertura = new TimeOnly(8, 0),
             HoraFechamento = new TimeOnly(18, 0),
             IntervaloMinutos = 30
@@ -164,17 +244,25 @@ public static class AgendAiDbSeeder
 
     private static async Task GarantirPainelTvAtualDefaultAsync(
         AgendAiDbContext db,
+        CancellationToken cancellationToken) =>
+        await GarantirPainelTvAtualAsync(db, SeedIds.TenantDefault, cancellationToken);
+
+    private static async Task GarantirPainelTvAtualAsync(
+        AgendAiDbContext db,
+        Guid tenantId,
         CancellationToken cancellationToken)
     {
         var existe = await db.ChamadasPainelTvAtual
-            .AnyAsync(c => c.TenantId == SeedIds.TenantDefault, cancellationToken);
+            .AnyAsync(c => c.TenantId == tenantId, cancellationToken);
 
         if (existe)
             return;
 
+        var painelId = await IntEntityIdAllocator.NextChamadaPainelTvIdAsync(db, cancellationToken);
         db.ChamadasPainelTvAtual.Add(new ChamadaPainelTvAtual
         {
-            TenantId = SeedIds.TenantDefault,
+            Id = painelId,
+            TenantId = tenantId,
             PacienteNome = string.Empty,
             ProfissionalNome = string.Empty,
             Timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()

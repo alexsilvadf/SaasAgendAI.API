@@ -12,6 +12,9 @@ public class ChamadaPainelTvAtualConfiguration : IEntityTypeConfiguration<Chamad
 
         builder.HasKey(chamada => chamada.Id);
 
+        builder.Property(chamada => chamada.Id)
+            .ValueGeneratedOnAdd();
+
         builder.Property(chamada => chamada.TenantId)
             .IsRequired();
 

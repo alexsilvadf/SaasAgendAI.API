@@ -5,11 +5,12 @@ using AgendAI.Domain.Enums;
 using AgendAI.Domain.Exceptions;
 using AgendAI.Infra.Persistence;
 using AgendAI.Infra.Persistence.Seed;
+using AgendAI.Infra.Tenancy;
 using Microsoft.EntityFrameworkCore;
 
 namespace AgendAI.Infra.Services;
 
-public sealed class PainelTvService(AgendAiDbContext db) : IPainelTvService
+public sealed class PainelTvService(AgendAiDbContext db, ITenantContext tenantContext) : IPainelTvService
 {
     public async Task<ChamadaPainelTvDto?> ObterChamadaAtualAsync(
         string? tenantSlug = null,
@@ -57,14 +58,16 @@ public sealed class PainelTvService(AgendAiDbContext db) : IPainelTvService
             ? request.Timestamp
             : DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
 
+        var tenantId = ResolveCurrentTenantId();
         var chamada = await db.ChamadasPainelTvAtual
-            .FirstOrDefaultAsync(c => c.TenantId == SeedIds.TenantDefault, cancellationToken);
+            .FirstOrDefaultAsync(c => c.TenantId == tenantId, cancellationToken);
 
         if (chamada is null)
         {
             chamada = new ChamadaPainelTvAtual
             {
-                TenantId = SeedIds.TenantDefault
+                Id = await IntEntityIdAllocator.NextChamadaPainelTvIdAsync(db, cancellationToken),
+                TenantId = tenantId
             };
             db.ChamadasPainelTvAtual.Add(chamada);
         }
@@ -90,8 +93,9 @@ public sealed class PainelTvService(AgendAiDbContext db) : IPainelTvService
         if (!agendamentoId.HasValue && !pacienteId.HasValue)
             return;
 
+        var tenantId = ResolveCurrentTenantId();
         var chamada = await db.ChamadasPainelTvAtual
-            .FirstOrDefaultAsync(c => c.TenantId == SeedIds.TenantDefault, cancellationToken);
+            .FirstOrDefaultAsync(c => c.TenantId == tenantId, cancellationToken);
 
         if (chamada is null)
             return;
@@ -229,10 +233,18 @@ public sealed class PainelTvService(AgendAiDbContext db) : IPainelTvService
             Timestamp = chamada.Timestamp
         };
 
+    private Guid ResolveCurrentTenantId()
+    {
+        if (tenantContext.IsResolved)
+            return tenantContext.TenantId;
+
+        return SeedIds.TenantDefault;
+    }
+
     private async Task<Guid> ResolveTenantIdAsync(string? tenantSlug, CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(tenantSlug))
-            return SeedIds.TenantDefault;
+            return ResolveCurrentTenantId();
 
         var slug = tenantSlug.Trim().ToLowerInvariant();
         var tenant = await db.Tenants
