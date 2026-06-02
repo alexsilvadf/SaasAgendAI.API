@@ -27,4 +27,10 @@ public static class ClaimsPrincipalExtensions
 
     public static bool HasAnyPermission(this ClaimsPrincipal user, params string[] permissions) =>
         permissions.Any(user.HasPermission);
+
+    public static Guid? GetTenantId(this ClaimsPrincipal user)
+    {
+        var tenantId = user.FindFirstValue("tenant_id");
+        return Guid.TryParse(tenantId, out var parsed) ? parsed : null;
+    }
 }

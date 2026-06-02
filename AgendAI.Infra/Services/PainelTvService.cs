@@ -4,19 +4,21 @@ using AgendAI.Domain.Entities;
 using AgendAI.Domain.Enums;
 using AgendAI.Domain.Exceptions;
 using AgendAI.Infra.Persistence;
+using AgendAI.Infra.Persistence.Seed;
 using Microsoft.EntityFrameworkCore;
 
 namespace AgendAI.Infra.Services;
 
 public sealed class PainelTvService(AgendAiDbContext db) : IPainelTvService
 {
-    private const int RegistroUnicoId = 1;
-
-    public async Task<ChamadaPainelTvDto?> ObterChamadaAtualAsync(CancellationToken cancellationToken = default)
+    public async Task<ChamadaPainelTvDto?> ObterChamadaAtualAsync(
+        string? tenantSlug = null,
+        CancellationToken cancellationToken = default)
     {
+        var tenantId = await ResolveTenantIdAsync(tenantSlug, cancellationToken);
         var chamada = await db.ChamadasPainelTvAtual
             .AsNoTracking()
-            .FirstOrDefaultAsync(c => c.Id == RegistroUnicoId, cancellationToken);
+            .FirstOrDefaultAsync(c => c.TenantId == tenantId, cancellationToken);
 
         if (chamada is null || string.IsNullOrWhiteSpace(chamada.PacienteNome))
             return null;
@@ -56,11 +58,14 @@ public sealed class PainelTvService(AgendAiDbContext db) : IPainelTvService
             : DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
 
         var chamada = await db.ChamadasPainelTvAtual
-            .FirstOrDefaultAsync(c => c.Id == RegistroUnicoId, cancellationToken);
+            .FirstOrDefaultAsync(c => c.TenantId == SeedIds.TenantDefault, cancellationToken);
 
         if (chamada is null)
         {
-            chamada = new ChamadaPainelTvAtual { Id = RegistroUnicoId };
+            chamada = new ChamadaPainelTvAtual
+            {
+                TenantId = SeedIds.TenantDefault
+            };
             db.ChamadasPainelTvAtual.Add(chamada);
         }
 
@@ -86,7 +91,7 @@ public sealed class PainelTvService(AgendAiDbContext db) : IPainelTvService
             return;
 
         var chamada = await db.ChamadasPainelTvAtual
-            .FirstOrDefaultAsync(c => c.Id == RegistroUnicoId, cancellationToken);
+            .FirstOrDefaultAsync(c => c.TenantId == SeedIds.TenantDefault, cancellationToken);
 
         if (chamada is null)
             return;
@@ -110,9 +115,11 @@ public sealed class PainelTvService(AgendAiDbContext db) : IPainelTvService
     }
 
     public async Task<IReadOnlyList<ProximoPacientePainelTvDto>> ListarProximosPacientesAsync(
+        string? tenantSlug = null,
         int quantidade = 5,
         CancellationToken cancellationToken = default)
     {
+        var tenantId = await ResolveTenantIdAsync(tenantSlug, cancellationToken);
         quantidade = Math.Clamp(quantidade, 1, 20);
 
         var agoraBrasil = ObterAgoraBrasil();
@@ -121,16 +128,18 @@ public sealed class PainelTvService(AgendAiDbContext db) : IPainelTvService
 
         var chamada = await db.ChamadasPainelTvAtual
             .AsNoTracking()
-            .FirstOrDefaultAsync(c => c.Id == RegistroUnicoId, cancellationToken);
+            .FirstOrDefaultAsync(c => c.TenantId == tenantId, cancellationToken);
 
         var query = db.Agendamentos
             .AsNoTracking()
             .Include(a => a.Paciente)
             .Include(a => a.Profissional)
             .Where(a => a.Data == hoje)
+            .Where(a => a.TenantId == tenantId)
             .Where(a => a.Status == StatusAgendamento.Agendado)
             .Where(a => a.HoraInicio >= horaAtual)
             .Where(a => !db.Atendimentos.Any(at =>
+                at.TenantId == tenantId &&
                 at.Data == hoje &&
                 (at.AgendamentoId == a.Id ||
                  (at.PacienteId == a.PacienteId &&
@@ -219,4 +228,20 @@ public sealed class PainelTvService(AgendAiDbContext db) : IPainelTvService
             Horario = chamada.Horario,
             Timestamp = chamada.Timestamp
         };
+
+    private async Task<Guid> ResolveTenantIdAsync(string? tenantSlug, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(tenantSlug))
+            return SeedIds.TenantDefault;
+
+        var slug = tenantSlug.Trim().ToLowerInvariant();
+        var tenant = await db.Tenants
+            .AsNoTracking()
+            .FirstOrDefaultAsync(t => t.Slug == slug && t.Ativo, cancellationToken);
+
+        if (tenant is null)
+            throw new NotFoundException("Tenant", slug);
+
+        return tenant.Id;
+    }
 }

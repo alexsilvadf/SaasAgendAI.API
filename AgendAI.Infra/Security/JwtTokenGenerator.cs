@@ -13,7 +13,7 @@ public sealed class JwtTokenGenerator(IOptions<JwtSettings> options)
 {
     private readonly JwtSettings _settings = options.Value;
 
-    public (string Token, int ExpiresInSeconds) Generate(Usuario usuario)
+    public (string Token, int ExpiresInSeconds) Generate(Usuario usuario, Tenant tenant)
     {
         var permissions = RolePermissions.GetPermissionNames(usuario.Role);
         var claims = new List<Claim>
@@ -21,7 +21,9 @@ public sealed class JwtTokenGenerator(IOptions<JwtSettings> options)
             new(JwtRegisteredClaimNames.Sub, usuario.Id.ToString()),
             new(JwtRegisteredClaimNames.UniqueName, usuario.Login),
             new(ClaimTypes.Name, usuario.Nome),
-            new(ClaimTypes.Role, usuario.Role.ToJsonValue())
+            new(ClaimTypes.Role, usuario.Role.ToJsonValue()),
+            new("tenant_id", tenant.Id.ToString()),
+            new("tenant_slug", tenant.Slug)
         };
 
         claims.AddRange(permissions.Select(p => new Claim("permission", p)));

@@ -10,21 +10,24 @@ namespace AgendAI.API.Controllers;
 [Route("api/v1/painel-tv")]
 public sealed class PainelTvController(IPainelTvService painelTvService) : ControllerBase
 {
-    [HttpGet("chamada-atual")]
+    [HttpGet("{tenantSlug}/chamada-atual")]
     [AllowAnonymous]
-    public async Task<IActionResult> ObterChamadaAtual(CancellationToken cancellationToken)
+    public async Task<IActionResult> ObterChamadaAtual(
+        [FromRoute] string tenantSlug,
+        CancellationToken cancellationToken)
     {
-        var chamada = await painelTvService.ObterChamadaAtualAsync(cancellationToken);
+        var chamada = await painelTvService.ObterChamadaAtualAsync(tenantSlug, cancellationToken);
         return Ok(chamada);
     }
 
-    [HttpGet("proximos-pacientes")]
+    [HttpGet("{tenantSlug}/proximos-pacientes")]
     [AllowAnonymous]
     public async Task<IActionResult> ListarProximosPacientes(
+        [FromRoute] string tenantSlug,
         [FromQuery] int quantidade = 5,
         CancellationToken cancellationToken = default)
     {
-        var itens = await painelTvService.ListarProximosPacientesAsync(quantidade, cancellationToken);
+        var itens = await painelTvService.ListarProximosPacientesAsync(tenantSlug, quantidade, cancellationToken);
         return Ok(itens);
     }
 

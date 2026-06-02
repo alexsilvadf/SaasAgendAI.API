@@ -26,14 +26,23 @@ public sealed class AuthService(
 
     public async Task<LoginResponse> LoginAsync(LoginRequest request, CancellationToken cancellationToken = default)
     {
-        if (string.IsNullOrWhiteSpace(request.Usuario) || string.IsNullOrWhiteSpace(request.Senha))
+        if (string.IsNullOrWhiteSpace(request.TenantSlug)
+            || string.IsNullOrWhiteSpace(request.Usuario)
+            || string.IsNullOrWhiteSpace(request.Senha))
             throw new UnauthorizedAccessException("Usuário ou senha inválidos.");
 
+        var tenantSlug = request.TenantSlug.Trim().ToLowerInvariant();
         var login = request.Usuario.Trim().ToLowerInvariant();
+        var tenant = await db.Tenants
+            .AsNoTracking()
+            .FirstOrDefaultAsync(t => t.Slug == tenantSlug, cancellationToken);
+
+        if (tenant is null || !tenant.Ativo)
+            throw new UnauthorizedAccessException("Usuário ou senha inválidos.");
 
         var usuario = await db.Usuarios
             .AsNoTracking()
-            .FirstOrDefaultAsync(u => u.Login == login, cancellationToken);
+            .FirstOrDefaultAsync(u => u.TenantId == tenant.Id && u.Login == login, cancellationToken);
 
         if (usuario is null || !usuario.Ativo)
             throw new UnauthorizedAccessException("Usuário ou senha inválidos.");
@@ -51,7 +60,7 @@ public sealed class AuthService(
         if (!senhaValida)
             throw new UnauthorizedAccessException("Usuário ou senha inválidos.");
 
-        var (token, expiresIn) = tokenGenerator.Generate(usuario);
+        var (token, expiresIn) = tokenGenerator.Generate(usuario, tenant);
 
         return new LoginResponse
         {
@@ -61,7 +70,10 @@ public sealed class AuthService(
             Usuario = usuario.Login,
             Role = usuario.Role.ToJsonValue(),
             Permissions = RolePermissions.GetPermissionNames(usuario.Role),
-            ProfessionalId = usuario.Role == UserRole.Dentista ? usuario.Id : null
+            ProfessionalId = usuario.Role == UserRole.Dentista ? usuario.Id : null,
+            TenantId = tenant.Id,
+            TenantSlug = tenant.Slug,
+            TenantNome = tenant.Nome
         };
     }
 
@@ -69,11 +81,19 @@ public sealed class AuthService(
         ForgotPasswordRequest request,
         CancellationToken cancellationToken = default)
     {
-        if (string.IsNullOrWhiteSpace(request.Identificador))
+        if (string.IsNullOrWhiteSpace(request.TenantSlug) || string.IsNullOrWhiteSpace(request.Identificador))
             return new MessageResponse { Message = MensagemRecuperacaoGenerica };
 
+        var tenantSlug = request.TenantSlug.Trim().ToLowerInvariant();
         var identificador = request.Identificador.Trim().ToLowerInvariant();
-        var usuario = await BuscarUsuarioPorIdentificadorAsync(identificador, cancellationToken);
+        var tenant = await db.Tenants
+            .AsNoTracking()
+            .FirstOrDefaultAsync(t => t.Slug == tenantSlug && t.Ativo, cancellationToken);
+
+        if (tenant is null)
+            return new MessageResponse { Message = MensagemRecuperacaoGenerica };
+
+        var usuario = await BuscarUsuarioPorIdentificadorAsync(tenant.Id, identificador, cancellationToken);
 
         if (usuario is null || !usuario.Ativo || string.IsNullOrWhiteSpace(usuario.Email))
             return new MessageResponse { Message = MensagemRecuperacaoGenerica };
@@ -92,6 +112,7 @@ public sealed class AuthService(
         db.TokensRecuperacaoSenha.Add(new TokenRecuperacaoSenha
         {
             Id = Guid.NewGuid(),
+            TenantId = tenant.Id,
             UsuarioId = usuario.Id,
             TokenHash = tokenHash,
             ExpiraEm = expiraEm,
@@ -164,6 +185,7 @@ public sealed class AuthService(
     }
 
     private async Task<Usuario?> BuscarUsuarioPorIdentificadorAsync(
+        Guid tenantId,
         string identificador,
         CancellationToken cancellationToken)
     {
@@ -171,11 +193,11 @@ public sealed class AuthService(
         {
             return await db.Usuarios
                 .FirstOrDefaultAsync(
-                    u => u.Email != null && u.Email.ToLower() == identificador,
+                    u => u.TenantId == tenantId && u.Email != null && u.Email.ToLower() == identificador,
                     cancellationToken);
         }
 
         return await db.Usuarios
-            .FirstOrDefaultAsync(u => u.Login == identificador, cancellationToken);
+            .FirstOrDefaultAsync(u => u.TenantId == tenantId && u.Login == identificador, cancellationToken);
     }
 }

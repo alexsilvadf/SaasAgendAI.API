@@ -4,13 +4,14 @@ namespace AgendAI.Application.Abstractions;
 
 public interface IPainelTvService
 {
-    Task<ChamadaPainelTvDto?> ObterChamadaAtualAsync(CancellationToken cancellationToken = default);
+    Task<ChamadaPainelTvDto?> ObterChamadaAtualAsync(string? tenantSlug = null, CancellationToken cancellationToken = default);
 
     Task<ChamadaPainelTvDto> PublicarChamadaAsync(
         PublicarChamadaPainelTvRequest request,
         CancellationToken cancellationToken = default);
 
     Task<IReadOnlyList<ProximoPacientePainelTvDto>> ListarProximosPacientesAsync(
+        string? tenantSlug = null,
         int quantidade = 5,
         CancellationToken cancellationToken = default);
 

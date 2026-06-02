@@ -22,12 +22,17 @@ public static class AgendAiDbSeeder
     /// </summary>
     public static async Task SeedAsync(AgendAiDbContext db, CancellationToken cancellationToken = default)
     {
+        await GarantirTenantDefaultAsync(db, cancellationToken);
+
         if (!await db.Usuarios.AnyAsync(cancellationToken))
         {
             var now = DateTime.UtcNow;
             db.Usuarios.AddRange(CriarUsuarios(now));
             await db.SaveChangesAsync(cancellationToken);
         }
+
+        await GarantirConfiguracaoClinicaDefaultAsync(db, cancellationToken);
+        await GarantirPainelTvAtualDefaultAsync(db, cancellationToken);
 
         await AtualizarEmailsUsuariosSeedAsync(db, cancellationToken);
         await GarantirUsuarioRaissaAsync(db, cancellationToken);
@@ -56,6 +61,7 @@ public static class AgendAiDbSeeder
         new()
         {
             Id = id,
+            TenantId = SeedIds.TenantDefault,
             Nome = nome,
             Login = login,
             Email = email,
@@ -94,7 +100,8 @@ public static class AgendAiDbSeeder
         CancellationToken cancellationToken)
     {
         var jaExiste = await db.Usuarios.AnyAsync(
-            u => u.Id == SeedIds.UsuarioRaissa || u.Login == "raissa",
+            u => u.TenantId == SeedIds.TenantDefault &&
+                 (u.Id == SeedIds.UsuarioRaissa || u.Login == "raissa"),
             cancellationToken);
 
         if (jaExiste)
@@ -110,6 +117,68 @@ public static class AgendAiDbSeeder
             "Dentista",
             true,
             now));
+
+        await db.SaveChangesAsync(cancellationToken);
+    }
+
+    private static async Task GarantirTenantDefaultAsync(
+        AgendAiDbContext db,
+        CancellationToken cancellationToken)
+    {
+        var tenantExiste = await db.Tenants.AnyAsync(t => t.Id == SeedIds.TenantDefault, cancellationToken);
+        if (tenantExiste)
+            return;
+
+        db.Tenants.Add(new Tenant
+        {
+            Id = SeedIds.TenantDefault,
+            Nome = "Clinica Padrao",
+            Slug = "default",
+            Ativo = true,
+            CriadoEm = DateTime.UtcNow
+        });
+
+        await db.SaveChangesAsync(cancellationToken);
+    }
+
+    private static async Task GarantirConfiguracaoClinicaDefaultAsync(
+        AgendAiDbContext db,
+        CancellationToken cancellationToken)
+    {
+        var existe = await db.ConfiguracoesClinica
+            .AnyAsync(c => c.TenantId == SeedIds.TenantDefault, cancellationToken);
+
+        if (existe)
+            return;
+
+        db.ConfiguracoesClinica.Add(new ConfiguracaoClinica
+        {
+            TenantId = SeedIds.TenantDefault,
+            HoraAbertura = new TimeOnly(8, 0),
+            HoraFechamento = new TimeOnly(18, 0),
+            IntervaloMinutos = 30
+        });
+
+        await db.SaveChangesAsync(cancellationToken);
+    }
+
+    private static async Task GarantirPainelTvAtualDefaultAsync(
+        AgendAiDbContext db,
+        CancellationToken cancellationToken)
+    {
+        var existe = await db.ChamadasPainelTvAtual
+            .AnyAsync(c => c.TenantId == SeedIds.TenantDefault, cancellationToken);
+
+        if (existe)
+            return;
+
+        db.ChamadasPainelTvAtual.Add(new ChamadaPainelTvAtual
+        {
+            TenantId = SeedIds.TenantDefault,
+            PacienteNome = string.Empty,
+            ProfissionalNome = string.Empty,
+            Timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
+        });
 
         await db.SaveChangesAsync(cancellationToken);
     }
