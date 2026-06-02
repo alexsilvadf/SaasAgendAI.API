@@ -2,8 +2,10 @@ using AgendAI.Application.Abstractions;
 using AgendAI.Application.Options;
 using AgendAI.Infra.Email;
 using AgendAI.Infra.Persistence;
+using AgendAI.Infra.Persistence.Interceptors;
 using AgendAI.Infra.Security;
 using AgendAI.Infra.Services;
+using AgendAI.Infra.Tenancy;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -18,18 +20,22 @@ public static class DependencyInjection
         this IServiceCollection services,
         IConfiguration configuration)
     {
+        services.AddScoped<TenantSaveChangesInterceptor>();
+
         if (DataOptions.UseInMemory(configuration))
         {
-            services.AddDbContext<AgendAiDbContext>(options =>
-                options.UseInMemoryDatabase(DataOptions.InMemoryDatabaseName));
+            services.AddDbContext<AgendAiDbContext>((serviceProvider, options) =>
+                options.UseInMemoryDatabase(DataOptions.InMemoryDatabaseName)
+                    .AddInterceptors(serviceProvider.GetRequiredService<TenantSaveChangesInterceptor>()));
         }
         else
         {
             var connectionString = configuration.GetConnectionString("DefaultConnection")
                 ?? throw new InvalidOperationException("Connection string 'DefaultConnection' não configurada.");
 
-            services.AddDbContext<AgendAiDbContext>(options =>
-                options.UseNpgsql(connectionString));
+            services.AddDbContext<AgendAiDbContext>((serviceProvider, options) =>
+                options.UseNpgsql(connectionString)
+                    .AddInterceptors(serviceProvider.GetRequiredService<TenantSaveChangesInterceptor>()));
         }
 
         JwtSettingsConfiguration.Register(services, configuration);
@@ -39,6 +45,8 @@ public static class DependencyInjection
 
         services.AddSingleton<JwtTokenGenerator>();
         services.AddSingleton<IConfigureOptions<JwtBearerOptions>, ConfigureJwtBearerOptions>();
+        services.AddHttpContextAccessor();
+        services.AddScoped<ITenantContext, HttpTenantContext>();
 
         services.AddScoped<IAuthService, AuthService>();
         services.AddScoped<IAgendaService, AgendaService>();
@@ -49,6 +57,7 @@ public static class DependencyInjection
         services.AddScoped<IAtendimentoService, AtendimentoService>();
         services.AddScoped<IFinanceiroService, FinanceiroService>();
         services.AddScoped<IPainelTvService, PainelTvService>();
+        services.AddScoped<ITenantProvisioningService, TenantProvisioningService>();
 
         services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             .AddJwtBearer();

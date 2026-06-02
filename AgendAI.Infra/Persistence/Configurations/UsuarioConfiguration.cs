@@ -37,11 +37,19 @@ public class UsuarioConfiguration : IEntityTypeConfiguration<Usuario>
         builder.Property(usuario => usuario.Especialidade)
             .HasMaxLength(200);
 
-        builder.HasIndex(usuario => usuario.Login)
+        builder.Property(usuario => usuario.TenantId)
+            .IsRequired();
+
+        builder.HasOne<Tenant>()
+            .WithMany()
+            .HasForeignKey(usuario => usuario.TenantId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasIndex(usuario => new { usuario.TenantId, usuario.Login })
             .IsUnique()
             .HasDatabaseName("IX_Usuarios_Login");
 
-        builder.HasIndex(usuario => usuario.Email)
+        builder.HasIndex(usuario => new { usuario.TenantId, usuario.Email })
             .IsUnique()
             .HasDatabaseName("IX_Usuarios_Email")
             .HasFilter("\"Email\" IS NOT NULL AND \"Email\" <> ''");

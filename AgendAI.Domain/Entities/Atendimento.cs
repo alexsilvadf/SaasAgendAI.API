@@ -1,9 +1,12 @@
+using AgendAI.Domain.Abstractions;
 using AgendAI.Domain.Enums;
 
 namespace AgendAI.Domain.Entities;
 
-public class Atendimento : Entity
+public class Atendimento : Entity, ITenantOwned
 {
+    public Guid TenantId { get; set; }
+
     public Guid? AgendamentoId { get; set; }
 
     public Agendamento? Agendamento { get; set; }

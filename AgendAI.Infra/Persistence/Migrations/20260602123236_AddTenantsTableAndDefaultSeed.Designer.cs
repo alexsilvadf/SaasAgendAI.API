@@ -3,6 +3,7 @@ using System;
 using AgendAI.Infra.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace AgendAI.Infra.Persistence.Migrations
 {
     [DbContext(typeof(AgendAiDbContext))]
-    partial class AgendAiDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260602123236_AddTenantsTableAndDefaultSeed")]
+    partial class AddTenantsTableAndDefaultSeed
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -70,18 +73,14 @@ namespace AgendAI.Infra.Persistence.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("PacienteId");
-
                     b.HasIndex("ProcedimentoId");
 
-                    b.HasIndex("ProfissionalId");
-
-                    b.HasIndex("TenantId", "PacienteId", "Data", "HoraInicio")
+                    b.HasIndex("PacienteId", "Data", "HoraInicio")
                         .IsUnique()
                         .HasDatabaseName("IX_Agendamentos_Paciente_Data_Hora_Agendado")
                         .HasFilter("[Status] = N'agendado'");
 
-                    b.HasIndex("TenantId", "ProfissionalId", "Data", "HoraInicio")
+                    b.HasIndex("ProfissionalId", "Data", "HoraInicio")
                         .IsUnique()
                         .HasDatabaseName("IX_Agendamentos_Profissional_Data_Hora_Agendado")
                         .HasFilter("[Status] = N'agendado'");
@@ -157,9 +156,7 @@ namespace AgendAI.Infra.Persistence.Migrations
 
                     b.HasIndex("ProcedimentoId");
 
-                    b.HasIndex("ProfissionalId");
-
-                    b.HasIndex("TenantId", "ProfissionalId", "Data", "Hora")
+                    b.HasIndex("ProfissionalId", "Data", "Hora")
                         .IsUnique()
                         .HasDatabaseName("IX_Atendimentos_Profissional_Data_Hora");
 
@@ -200,8 +197,6 @@ namespace AgendAI.Infra.Persistence.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("ProfissionalId");
-
-                    b.HasIndex("TenantId");
 
                     b.ToTable("BloqueiosAgenda", (string)null);
                 });
@@ -245,10 +240,6 @@ namespace AgendAI.Infra.Persistence.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("TenantId")
-                        .IsUnique()
-                        .HasDatabaseName("IX_PainelTvChamadaAtual_TenantId");
-
                     b.ToTable("PainelTvChamadaAtual", (string)null);
                 });
 
@@ -274,11 +265,17 @@ namespace AgendAI.Infra.Persistence.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("TenantId")
-                        .IsUnique()
-                        .HasDatabaseName("IX_ConfiguracoesClinica_TenantId");
-
                     b.ToTable("ConfiguracoesClinica", (string)null);
+
+                    b.HasData(
+                        new
+                        {
+                            Id = 1,
+                            HoraAbertura = new TimeOnly(8, 0, 0),
+                            HoraFechamento = new TimeOnly(18, 0, 0),
+                            IntervaloMinutos = 30,
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000000")
+                        });
                 });
 
             modelBuilder.Entity("AgendAI.Domain.Entities.Lancamento", b =>
@@ -352,8 +349,6 @@ namespace AgendAI.Infra.Persistence.Migrations
                         .IsUnique()
                         .HasDatabaseName("IX_Lancamentos_AtendimentoId")
                         .HasFilter("[AtendimentoId] IS NOT NULL");
-
-                    b.HasIndex("TenantId");
 
                     b.ToTable("Lancamentos", (string)null);
                 });
@@ -451,7 +446,7 @@ namespace AgendAI.Infra.Persistence.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("TenantId", "Cpf")
+                    b.HasIndex("Cpf")
                         .IsUnique()
                         .HasDatabaseName("IX_Pacientes_Cpf");
 
@@ -515,8 +510,6 @@ namespace AgendAI.Infra.Persistence.Migrations
 
                     b.HasKey("PacienteId");
 
-                    b.HasIndex("TenantId");
-
                     b.ToTable("PacienteAnamneses", (string)null);
                 });
 
@@ -558,8 +551,6 @@ namespace AgendAI.Infra.Persistence.Migrations
 
                     b.HasIndex("PacienteId");
 
-                    b.HasIndex("TenantId");
-
                     b.ToTable("PacienteHistoricos", (string)null);
                 });
 
@@ -590,8 +581,6 @@ namespace AgendAI.Infra.Persistence.Migrations
                         .HasColumnType("numeric(18,2)");
 
                     b.HasKey("Id");
-
-                    b.HasIndex("TenantId");
 
                     b.ToTable("Procedimentos", (string)null);
                 });
@@ -652,8 +641,6 @@ namespace AgendAI.Infra.Persistence.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("TenantId");
-
                     b.HasIndex("UsuarioId");
 
                     b.ToTable("TokensRecuperacaoSenha", (string)null);
@@ -704,12 +691,12 @@ namespace AgendAI.Infra.Persistence.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("TenantId", "Email")
+                    b.HasIndex("Email")
                         .IsUnique()
                         .HasDatabaseName("IX_Usuarios_Email")
                         .HasFilter("\"Email\" IS NOT NULL AND \"Email\" <> ''");
 
-                    b.HasIndex("TenantId", "Login")
+                    b.HasIndex("Login")
                         .IsUnique()
                         .HasDatabaseName("IX_Usuarios_Login");
 
@@ -733,12 +720,6 @@ namespace AgendAI.Infra.Persistence.Migrations
                     b.HasOne("AgendAI.Domain.Entities.Usuario", "Profissional")
                         .WithMany("AgendamentosComoProfissional")
                         .HasForeignKey("ProfissionalId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("AgendAI.Domain.Entities.Tenant", null)
-                        .WithMany()
-                        .HasForeignKey("TenantId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
@@ -774,12 +755,6 @@ namespace AgendAI.Infra.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.HasOne("AgendAI.Domain.Entities.Tenant", null)
-                        .WithMany()
-                        .HasForeignKey("TenantId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
                     b.Navigation("Agendamento");
 
                     b.Navigation("Paciente");
@@ -796,31 +771,7 @@ namespace AgendAI.Infra.Persistence.Migrations
                         .HasForeignKey("ProfissionalId")
                         .OnDelete(DeleteBehavior.Restrict);
 
-                    b.HasOne("AgendAI.Domain.Entities.Tenant", null)
-                        .WithMany()
-                        .HasForeignKey("TenantId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
                     b.Navigation("Profissional");
-                });
-
-            modelBuilder.Entity("AgendAI.Domain.Entities.ChamadaPainelTvAtual", b =>
-                {
-                    b.HasOne("AgendAI.Domain.Entities.Tenant", null)
-                        .WithMany()
-                        .HasForeignKey("TenantId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-                });
-
-            modelBuilder.Entity("AgendAI.Domain.Entities.ConfiguracaoClinica", b =>
-                {
-                    b.HasOne("AgendAI.Domain.Entities.Tenant", null)
-                        .WithMany()
-                        .HasForeignKey("TenantId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
                 });
 
             modelBuilder.Entity("AgendAI.Domain.Entities.Lancamento", b =>
@@ -830,22 +781,7 @@ namespace AgendAI.Infra.Persistence.Migrations
                         .HasForeignKey("AgendAI.Domain.Entities.Lancamento", "AtendimentoId")
                         .OnDelete(DeleteBehavior.Restrict);
 
-                    b.HasOne("AgendAI.Domain.Entities.Tenant", null)
-                        .WithMany()
-                        .HasForeignKey("TenantId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
                     b.Navigation("Atendimento");
-                });
-
-            modelBuilder.Entity("AgendAI.Domain.Entities.Paciente", b =>
-                {
-                    b.HasOne("AgendAI.Domain.Entities.Tenant", null)
-                        .WithMany()
-                        .HasForeignKey("TenantId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
                 });
 
             modelBuilder.Entity("AgendAI.Domain.Entities.PacienteAnamnese", b =>
@@ -853,12 +789,6 @@ namespace AgendAI.Infra.Persistence.Migrations
                     b.HasOne("AgendAI.Domain.Entities.Paciente", "Paciente")
                         .WithOne("Anamnese")
                         .HasForeignKey("AgendAI.Domain.Entities.PacienteAnamnese", "PacienteId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("AgendAI.Domain.Entities.Tenant", null)
-                        .WithMany()
-                        .HasForeignKey("TenantId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
@@ -873,32 +803,11 @@ namespace AgendAI.Infra.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.HasOne("AgendAI.Domain.Entities.Tenant", null)
-                        .WithMany()
-                        .HasForeignKey("TenantId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
                     b.Navigation("Paciente");
-                });
-
-            modelBuilder.Entity("AgendAI.Domain.Entities.Procedimento", b =>
-                {
-                    b.HasOne("AgendAI.Domain.Entities.Tenant", null)
-                        .WithMany()
-                        .HasForeignKey("TenantId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
                 });
 
             modelBuilder.Entity("AgendAI.Domain.Entities.TokenRecuperacaoSenha", b =>
                 {
-                    b.HasOne("AgendAI.Domain.Entities.Tenant", null)
-                        .WithMany()
-                        .HasForeignKey("TenantId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
                     b.HasOne("AgendAI.Domain.Entities.Usuario", "Usuario")
                         .WithMany("TokensRecuperacaoSenha")
                         .HasForeignKey("UsuarioId")
@@ -906,15 +815,6 @@ namespace AgendAI.Infra.Persistence.Migrations
                         .IsRequired();
 
                     b.Navigation("Usuario");
-                });
-
-            modelBuilder.Entity("AgendAI.Domain.Entities.Usuario", b =>
-                {
-                    b.HasOne("AgendAI.Domain.Entities.Tenant", null)
-                        .WithMany()
-                        .HasForeignKey("TenantId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
                 });
 
             modelBuilder.Entity("AgendAI.Domain.Entities.Agendamento", b =>

@@ -21,6 +21,14 @@ public class BloqueioAgendaConfiguration : IEntityTypeConfiguration<BloqueioAgen
             .HasMaxLength(50)
             .IsRequired();
 
+        builder.Property(bloqueio => bloqueio.TenantId)
+            .IsRequired();
+
+        builder.HasOne<Tenant>()
+            .WithMany()
+            .HasForeignKey(bloqueio => bloqueio.TenantId)
+            .OnDelete(DeleteBehavior.Restrict);
+
         builder.HasOne(bloqueio => bloqueio.Profissional)
             .WithMany(usuario => usuario.BloqueiosAgenda)
             .HasForeignKey(bloqueio => bloqueio.ProfissionalId)

@@ -12,6 +12,18 @@ public class ChamadaPainelTvAtualConfiguration : IEntityTypeConfiguration<Chamad
 
         builder.HasKey(chamada => chamada.Id);
 
+        builder.Property(chamada => chamada.TenantId)
+            .IsRequired();
+
+        builder.HasOne<Tenant>()
+            .WithMany()
+            .HasForeignKey(chamada => chamada.TenantId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasIndex(chamada => chamada.TenantId)
+            .IsUnique()
+            .HasDatabaseName("IX_PainelTvChamadaAtual_TenantId");
+
         builder.Property(chamada => chamada.PacienteNome)
             .HasMaxLength(200)
             .IsRequired();

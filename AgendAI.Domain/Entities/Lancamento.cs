@@ -1,9 +1,12 @@
+using AgendAI.Domain.Abstractions;
 using AgendAI.Domain.Enums;
 
 namespace AgendAI.Domain.Entities;
 
-public class Lancamento : Entity
+public class Lancamento : Entity, ITenantOwned
 {
+    public Guid TenantId { get; set; }
+
     public TipoLancamento Tipo { get; set; }
 
     public string Descricao { get; set; } = string.Empty;

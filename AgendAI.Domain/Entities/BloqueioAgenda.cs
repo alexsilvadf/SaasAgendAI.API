@@ -1,9 +1,12 @@
+using AgendAI.Domain.Abstractions;
 using AgendAI.Domain.Enums;
 
 namespace AgendAI.Domain.Entities;
 
-public class BloqueioAgenda : Entity
+public class BloqueioAgenda : Entity, ITenantOwned
 {
+    public Guid TenantId { get; set; }
+
     public Guid? ProfissionalId { get; set; }
 
     public Usuario? Profissional { get; set; }

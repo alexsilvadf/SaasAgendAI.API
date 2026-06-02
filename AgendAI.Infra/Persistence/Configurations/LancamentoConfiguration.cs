@@ -39,6 +39,14 @@ public class LancamentoConfiguration : IEntityTypeConfiguration<Lancamento>
             .HasConversion(EnumSnakeCaseConverter.Create<FormaPagamento>())
             .HasMaxLength(50);
 
+        builder.Property(lancamento => lancamento.TenantId)
+            .IsRequired();
+
+        builder.HasOne<Tenant>()
+            .WithMany()
+            .HasForeignKey(lancamento => lancamento.TenantId)
+            .OnDelete(DeleteBehavior.Restrict);
+
         builder.HasOne(lancamento => lancamento.Atendimento)
             .WithOne(atendimento => atendimento.Lancamento)
             .HasForeignKey<Lancamento>(lancamento => lancamento.AtendimentoId)

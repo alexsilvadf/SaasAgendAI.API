@@ -1,11 +1,15 @@
+using AgendAI.Domain.Abstractions;
+
 namespace AgendAI.Domain.Entities;
 
 /// <summary>
 /// Chamada exibida no painel/TV da recepção (registro único, Id = 1).
 /// </summary>
-public class ChamadaPainelTvAtual
+public class ChamadaPainelTvAtual : ITenantOwned
 {
     public int Id { get; set; } = 1;
+
+    public Guid TenantId { get; set; }
 
     public string PacienteNome { get; set; } = string.Empty;
 

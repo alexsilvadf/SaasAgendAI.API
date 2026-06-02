@@ -1,8 +1,12 @@
+using AgendAI.Domain.Abstractions;
+
 namespace AgendAI.Domain.Entities;
 
-public class ConfiguracaoClinica
+public class ConfiguracaoClinica : ITenantOwned
 {
     public int Id { get; set; } = 1;
+
+    public Guid TenantId { get; set; }
 
     public TimeOnly HoraAbertura { get; set; }
 

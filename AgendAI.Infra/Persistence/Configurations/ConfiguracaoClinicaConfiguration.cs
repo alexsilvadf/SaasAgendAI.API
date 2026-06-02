@@ -12,12 +12,16 @@ public class ConfiguracaoClinicaConfiguration : IEntityTypeConfiguration<Configu
 
         builder.HasKey(configuracao => configuracao.Id);
 
-        builder.HasData(new ConfiguracaoClinica
-        {
-            Id = 1,
-            HoraAbertura = new TimeOnly(8, 0),
-            HoraFechamento = new TimeOnly(18, 0),
-            IntervaloMinutos = 30
-        });
+        builder.Property(configuracao => configuracao.TenantId)
+            .IsRequired();
+
+        builder.HasOne<Tenant>()
+            .WithMany()
+            .HasForeignKey(configuracao => configuracao.TenantId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasIndex(configuracao => configuracao.TenantId)
+            .IsUnique()
+            .HasDatabaseName("IX_ConfiguracoesClinica_TenantId");
     }
 }

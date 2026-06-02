@@ -47,7 +47,15 @@ public class PacienteConfiguration : IEntityTypeConfiguration<Paciente>
             .HasMaxLength(20)
             .IsRequired();
 
-        builder.HasIndex(paciente => paciente.Cpf)
+        builder.Property(paciente => paciente.TenantId)
+            .IsRequired();
+
+        builder.HasOne<Tenant>()
+            .WithMany()
+            .HasForeignKey(paciente => paciente.TenantId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasIndex(paciente => new { paciente.TenantId, paciente.Cpf })
             .IsUnique()
             .HasDatabaseName("IX_Pacientes_Cpf");
 

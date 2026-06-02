@@ -24,6 +24,14 @@ public class AgendamentoConfiguration : IEntityTypeConfiguration<Agendamento>
         builder.Property(agendamento => agendamento.Observacoes)
             .HasMaxLength(2000);
 
+        builder.Property(agendamento => agendamento.TenantId)
+            .IsRequired();
+
+        builder.HasOne<Tenant>()
+            .WithMany()
+            .HasForeignKey(agendamento => agendamento.TenantId)
+            .OnDelete(DeleteBehavior.Restrict);
+
         builder.HasOne(agendamento => agendamento.Profissional)
             .WithMany(usuario => usuario.AgendamentosComoProfissional)
             .HasForeignKey(agendamento => agendamento.ProfissionalId)
@@ -40,13 +48,13 @@ public class AgendamentoConfiguration : IEntityTypeConfiguration<Agendamento>
             .OnDelete(DeleteBehavior.Restrict);
 
         // Conflito: mesmo profissional não pode ter dois agendamentos ativos no mesmo horário.
-        builder.HasIndex(agendamento => new { agendamento.ProfissionalId, agendamento.Data, agendamento.HoraInicio })
+        builder.HasIndex(agendamento => new { agendamento.TenantId, agendamento.ProfissionalId, agendamento.Data, agendamento.HoraInicio })
             .IsUnique()
             .HasDatabaseName("IX_Agendamentos_Profissional_Data_Hora_Agendado")
             .HasFilter(StatusAgendadoFilter);
 
         // Conflito: mesmo paciente não pode ter dois agendamentos ativos no mesmo horário.
-        builder.HasIndex(agendamento => new { agendamento.PacienteId, agendamento.Data, agendamento.HoraInicio })
+        builder.HasIndex(agendamento => new { agendamento.TenantId, agendamento.PacienteId, agendamento.Data, agendamento.HoraInicio })
             .IsUnique()
             .HasDatabaseName("IX_Agendamentos_Paciente_Data_Hora_Agendado")
             .HasFilter(StatusAgendadoFilter);

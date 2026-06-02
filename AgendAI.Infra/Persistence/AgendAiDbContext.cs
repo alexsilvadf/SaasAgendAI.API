@@ -1,10 +1,23 @@
+using AgendAI.Application.Abstractions;
 using AgendAI.Domain.Entities;
+using AgendAI.Infra.Tenancy;
 using Microsoft.EntityFrameworkCore;
 
 namespace AgendAI.Infra.Persistence;
 
-public class AgendAiDbContext(DbContextOptions<AgendAiDbContext> options) : DbContext(options)
+public class AgendAiDbContext : DbContext
 {
+    private readonly ITenantContext _tenantContext;
+
+    public AgendAiDbContext(
+        DbContextOptions<AgendAiDbContext> options,
+        ITenantContext? tenantContext = null) : base(options)
+    {
+        _tenantContext = tenantContext ?? new NullTenantContext();
+    }
+
+    public DbSet<Tenant> Tenants => Set<Tenant>();
+
     public DbSet<Usuario> Usuarios => Set<Usuario>();
 
     public DbSet<Paciente> Pacientes => Set<Paciente>();
@@ -35,6 +48,35 @@ public class AgendAiDbContext(DbContextOptions<AgendAiDbContext> options) : DbCo
         modelBuilder.ApplyValorColumnPrecision();
         modelBuilder.ValidateEnumStringStorage();
         modelBuilder.ApplyRestrictOnDelete();
+        ApplyTenantQueryFilters(modelBuilder);
         base.OnModelCreating(modelBuilder);
+    }
+
+    private void ApplyTenantQueryFilters(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<Usuario>()
+            .HasQueryFilter(e => !_tenantContext.IsResolved || e.TenantId == _tenantContext.TenantId);
+        modelBuilder.Entity<Paciente>()
+            .HasQueryFilter(e => !_tenantContext.IsResolved || e.TenantId == _tenantContext.TenantId);
+        modelBuilder.Entity<PacienteAnamnese>()
+            .HasQueryFilter(e => !_tenantContext.IsResolved || e.TenantId == _tenantContext.TenantId);
+        modelBuilder.Entity<PacienteHistorico>()
+            .HasQueryFilter(e => !_tenantContext.IsResolved || e.TenantId == _tenantContext.TenantId);
+        modelBuilder.Entity<Procedimento>()
+            .HasQueryFilter(e => !_tenantContext.IsResolved || e.TenantId == _tenantContext.TenantId);
+        modelBuilder.Entity<Agendamento>()
+            .HasQueryFilter(e => !_tenantContext.IsResolved || e.TenantId == _tenantContext.TenantId);
+        modelBuilder.Entity<BloqueioAgenda>()
+            .HasQueryFilter(e => !_tenantContext.IsResolved || e.TenantId == _tenantContext.TenantId);
+        modelBuilder.Entity<Atendimento>()
+            .HasQueryFilter(e => !_tenantContext.IsResolved || e.TenantId == _tenantContext.TenantId);
+        modelBuilder.Entity<Lancamento>()
+            .HasQueryFilter(e => !_tenantContext.IsResolved || e.TenantId == _tenantContext.TenantId);
+        modelBuilder.Entity<TokenRecuperacaoSenha>()
+            .HasQueryFilter(e => !_tenantContext.IsResolved || e.TenantId == _tenantContext.TenantId);
+        modelBuilder.Entity<ConfiguracaoClinica>()
+            .HasQueryFilter(e => !_tenantContext.IsResolved || e.TenantId == _tenantContext.TenantId);
+        modelBuilder.Entity<ChamadaPainelTvAtual>()
+            .HasQueryFilter(e => !_tenantContext.IsResolved || e.TenantId == _tenantContext.TenantId);
     }
 }

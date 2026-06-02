@@ -1,9 +1,12 @@
+using AgendAI.Domain.Abstractions;
 using AgendAI.Domain.Enums;
 
 namespace AgendAI.Domain.Entities;
 
-public class Paciente : Entity
+public class Paciente : Entity, ITenantOwned
 {
+    public Guid TenantId { get; set; }
+
     public string Nome { get; set; } = string.Empty;
 
     public string Cpf { get; set; } = string.Empty;

@@ -21,6 +21,14 @@ public class AtendimentoConfiguration : IEntityTypeConfiguration<Atendimento>
             .HasConversion(EnumSnakeCaseConverter.Create<FormaPagamento>())
             .HasMaxLength(50);
 
+        builder.Property(atendimento => atendimento.TenantId)
+            .IsRequired();
+
+        builder.HasOne<Tenant>()
+            .WithMany()
+            .HasForeignKey(atendimento => atendimento.TenantId)
+            .OnDelete(DeleteBehavior.Restrict);
+
         builder.HasOne(atendimento => atendimento.Agendamento)
             .WithOne(agendamento => agendamento.Atendimento)
             .HasForeignKey<Atendimento>(atendimento => atendimento.AgendamentoId)
@@ -47,7 +55,7 @@ public class AtendimentoConfiguration : IEntityTypeConfiguration<Atendimento>
             .HasForeignKey(atendimento => atendimento.ProcedimentoId)
             .OnDelete(DeleteBehavior.Restrict);
 
-        builder.HasIndex(atendimento => new { atendimento.ProfissionalId, atendimento.Data, atendimento.Hora })
+        builder.HasIndex(atendimento => new { atendimento.TenantId, atendimento.ProfissionalId, atendimento.Data, atendimento.Hora })
             .IsUnique()
             .HasDatabaseName("IX_Atendimentos_Profissional_Data_Hora");
     }

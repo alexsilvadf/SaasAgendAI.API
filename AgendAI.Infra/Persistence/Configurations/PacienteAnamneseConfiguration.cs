@@ -12,6 +12,14 @@ public class PacienteAnamneseConfiguration : IEntityTypeConfiguration<PacienteAn
 
         builder.HasKey(anamnese => anamnese.PacienteId);
 
+        builder.Property(anamnese => anamnese.TenantId)
+            .IsRequired();
+
+        builder.HasOne<Tenant>()
+            .WithMany()
+            .HasForeignKey(anamnese => anamnese.TenantId)
+            .OnDelete(DeleteBehavior.Restrict);
+
         builder.Property(anamnese => anamnese.AlergiaMedicamentoDesc).HasMaxLength(500);
         builder.Property(anamnese => anamnese.AlergiaMaterialDesc).HasMaxLength(500);
         builder.Property(anamnese => anamnese.MedicamentoContinuoDesc).HasMaxLength(500);

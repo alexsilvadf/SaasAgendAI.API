@@ -3,6 +3,7 @@ using System;
 using AgendAI.Infra.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace AgendAI.Infra.Persistence.Migrations
 {
     [DbContext(typeof(AgendAiDbContext))]
-    partial class AgendAiDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260602124823_RemoveSingletonSeedsAndAddTenantUniqueConstraints")]
+    partial class RemoveSingletonSeedsAndAddTenantUniqueConstraints
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder

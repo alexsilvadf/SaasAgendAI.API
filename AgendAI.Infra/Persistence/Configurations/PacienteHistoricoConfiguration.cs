@@ -16,6 +16,14 @@ public class PacienteHistoricoConfiguration : IEntityTypeConfiguration<PacienteH
         builder.Property(historico => historico.Profissional).HasMaxLength(200).IsRequired();
         builder.Property(historico => historico.Observacoes).HasMaxLength(2000);
 
+        builder.Property(historico => historico.TenantId)
+            .IsRequired();
+
+        builder.HasOne<Tenant>()
+            .WithMany()
+            .HasForeignKey(historico => historico.TenantId)
+            .OnDelete(DeleteBehavior.Restrict);
+
         builder.HasOne(historico => historico.Paciente)
             .WithMany(paciente => paciente.Historicos)
             .HasForeignKey(historico => historico.PacienteId)

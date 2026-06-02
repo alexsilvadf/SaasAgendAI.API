@@ -3,6 +3,7 @@ using System;
 using AgendAI.Infra.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace AgendAI.Infra.Persistence.Migrations
 {
     [DbContext(typeof(AgendAiDbContext))]
-    partial class AgendAiDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260602124512_AddTenantScopedUniqueIndexes")]
+    partial class AddTenantScopedUniqueIndexes
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -245,9 +248,7 @@ namespace AgendAI.Infra.Persistence.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("TenantId")
-                        .IsUnique()
-                        .HasDatabaseName("IX_PainelTvChamadaAtual_TenantId");
+                    b.HasIndex("TenantId");
 
                     b.ToTable("PainelTvChamadaAtual", (string)null);
                 });
@@ -274,11 +275,19 @@ namespace AgendAI.Infra.Persistence.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("TenantId")
-                        .IsUnique()
-                        .HasDatabaseName("IX_ConfiguracoesClinica_TenantId");
+                    b.HasIndex("TenantId");
 
                     b.ToTable("ConfiguracoesClinica", (string)null);
+
+                    b.HasData(
+                        new
+                        {
+                            Id = 1,
+                            HoraAbertura = new TimeOnly(8, 0, 0),
+                            HoraFechamento = new TimeOnly(18, 0, 0),
+                            IntervaloMinutos = 30,
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001")
+                        });
                 });
 
             modelBuilder.Entity("AgendAI.Domain.Entities.Lancamento", b =>

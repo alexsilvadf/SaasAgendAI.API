@@ -22,5 +22,13 @@ public class ProcedimentoConfiguration : IEntityTypeConfiguration<Procedimento>
             .HasConversion(EnumSnakeCaseConverter.Create<StatusProcedimento>())
             .HasMaxLength(50)
             .IsRequired();
+
+        builder.Property(procedimento => procedimento.TenantId)
+            .IsRequired();
+
+        builder.HasOne<Tenant>()
+            .WithMany()
+            .HasForeignKey(procedimento => procedimento.TenantId)
+            .OnDelete(DeleteBehavior.Restrict);
     }
 }
